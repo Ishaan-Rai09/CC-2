@@ -1,29 +1,85 @@
-from passlib.context import CryptContext
-from jose import JWTError, jwt
+import base64
+import hashlib
+import hmac
+import secrets
 from datetime import datetime, timedelta, timezone
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-from ..database import get_db
+
 from ..config import get_settings
+from ..database import get_db
 from .schemas import TokenData
 
 settings = get_settings()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+PBKDF2_ALGORITHM = "sha256"
+PBKDF2_ITERATIONS = 600_000
+PBKDF2_SALT_BYTES = 16
+PBKDF2_PREFIX = "pbkdf2_sha256"
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
-# ── Password ───────────────────────────────────────────────
+def _b64encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _b64decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+def _pbkdf2_digest(password: str, salt: bytes, iterations: int) -> bytes:
+    return hashlib.pbkdf2_hmac(
+        PBKDF2_ALGORITHM,
+        password.encode("utf-8"),
+        salt,
+        iterations,
+    )
+
+
+def _verify_legacy_bcrypt_password(password: str, hashed: str) -> bool:
+    try:
+        import bcrypt
+    except ImportError:
+        return False
+
+    # Legacy bcrypt hashes only use the first 72 password bytes.
+    password_bytes = password.encode("utf-8")[:72]
+    return bcrypt.checkpw(password_bytes, hashed.encode("utf-8"))
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = secrets.token_bytes(PBKDF2_SALT_BYTES)
+    digest = _pbkdf2_digest(password, salt, PBKDF2_ITERATIONS)
+    return (
+        f"{PBKDF2_PREFIX}${PBKDF2_ITERATIONS}$"
+        f"{_b64encode(salt)}${_b64encode(digest)}"
+    )
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    if hashed.startswith(f"{PBKDF2_PREFIX}$"):
+        try:
+            _, iterations_str, salt_b64, digest_b64 = hashed.split("$", 3)
+            iterations = int(iterations_str)
+            salt = _b64decode(salt_b64)
+            expected_digest = _b64decode(digest_b64)
+        except (TypeError, ValueError):
+            return False
+
+        actual_digest = _pbkdf2_digest(plain, salt, iterations)
+        return hmac.compare_digest(actual_digest, expected_digest)
+
+    if hashed.startswith("$2"):
+        return _verify_legacy_bcrypt_password(plain, hashed)
+
+    return False
 
 
-# ── JWT ────────────────────────────────────────────────────
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(
@@ -49,12 +105,12 @@ def decode_token(token: str) -> TokenData:
         raise credentials_exception
 
 
-# ── Current user dependency ────────────────────────────────
 def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ):
     from .models import User
+
     token_data = decode_token(token)
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if not user:

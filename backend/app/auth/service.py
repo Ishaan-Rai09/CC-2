@@ -31,6 +31,10 @@ def login_user(db: Session, email: str, password: str) -> dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
+    if user.hashed_password.startswith("$2"):
+        user.hashed_password = hash_password(password)
+        db.commit()
+        db.refresh(user)
     token = create_access_token({"sub": str(user.id)})
     return {"access_token": token, "token_type": "bearer", "user": user}
 
