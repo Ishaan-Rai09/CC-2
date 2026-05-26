@@ -10,7 +10,14 @@ echo "====================================================="
 echo "🚀 Starting Smart Notes Deployment on AWS EC2..."
 echo "====================================================="
 
-# 1. Update system and install dependencies
+# 1. Update system and add SWAP Space (Crucial for PySpark on t3.micro/small)
+echo "📦 Setting up 4GB Swap Space..."
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
 echo "📦 Installing system dependencies (Python, Node.js, Nginx, Java for PySpark)..."
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3-pip python3-venv nginx curl git default-jre

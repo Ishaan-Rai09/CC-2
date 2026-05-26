@@ -7,7 +7,8 @@ This guide provides exact instructions for deploying the Smart Notes app (with S
 1. Go to AWS Console -> **EC2** -> **Launch Instance**.
 2. **Name**: `smart-notes-server`
 3. **OS**: Ubuntu 24.04 LTS
-4. **Instance Type**: **`t3.medium`** (CRITICAL: PySpark requires at least 4GB of RAM. Do NOT use `t2.micro` or it will crash).
+4. **Instance Type**: **`t3.small`** or **`t2.small`** (2GB RAM). 
+   *(Note: PySpark requires memory. The automated deployment script will create a 4GB Swap File to prevent crashes on smaller instances).*
 5. **Key Pair**: Create a new key pair (`smart-notes-key.pem`) and download it to your computer.
 6. **Network Settings**: 
    - Allow SSH traffic from Anywhere
