@@ -28,7 +28,7 @@ sudo apt install -y nodejs
 
 # 2. Setup Backend (FastAPI + PySpark)
 echo "🐍 Setting up Python Backend..."
-cd ~/smart-notes/backend
+cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -48,7 +48,7 @@ sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -
 
 # 4. Build Frontend (React)
 echo "⚛️  Building React Frontend..."
-cd ~/smart-notes/frontend
+cd ../frontend
 npm install
 npm run build
 
