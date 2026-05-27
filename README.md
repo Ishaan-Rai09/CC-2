@@ -19,6 +19,10 @@ A modern, production-grade student productivity platform built with a FastAPI ba
 - **Analytics**: Apache PySpark.
 - **Database**: SQLite (Development) / PostgreSQL ready.
 
+## Demo
+
+- Watch the app demo: https://youtu.be/AysBdgxKC-Y
+
 ## Quick Start (Local Development)
 
 ### 1. Backend Setup
