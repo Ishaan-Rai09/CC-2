@@ -44,7 +44,12 @@ export const notesService = {
 
 export const analyticsService = {
   getAnalytics: async () => {
-    const response = await api.get('/analytics/');
-    return response.data;
+    const response = await api.get('/analytics/', {
+      validateStatus: (status) => status === 200 || status === 202,
+    });
+    return {
+      statusCode: response.status,
+      ...response.data,
+    };
   }
 };

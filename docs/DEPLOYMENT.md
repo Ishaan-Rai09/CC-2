@@ -1,89 +1,159 @@
-# AWS Academy Learner Lab - EC2 Deployment Guide
+# AWS Academy Learner Lab EC2 Deployment Guide
 
-This guide provides exact instructions for deploying the Smart Notes app (with SQLite and PySpark) onto a single AWS EC2 instance, accessed directly via its Public IPv4 address.
+This project is best deployed in AWS Academy Learner Lab as a single EC2 instance.
+That fits the app's current architecture:
 
-## Step 1: Launch an EC2 Instance
+- React frontend built as static files
+- FastAPI backend behind Nginx
+- SQLite database stored on the instance
+- Uploaded files stored on the instance under `uploads/`
+- PySpark analytics can run either locally or in AWS Glue
 
-1. Go to AWS Console -> **EC2** -> **Launch Instance**.
-2. **Name**: `smart-notes-server`
-3. **OS**: Ubuntu 24.04 LTS
-4. **Instance Type**: **`t3.small`** or **`t2.small`** (2GB RAM). 
-   *(Note: PySpark requires memory. The automated deployment script will create a 4GB Swap File to prevent crashes on smaller instances).*
-5. **Key Pair**: Create a new key pair (`smart-notes-key.pem`) and download it to your computer.
-6. **Network Settings**: 
-   - Allow SSH traffic from Anywhere
-   - Allow HTTP traffic from the internet
-   - Allow HTTPS traffic from the internet
-7. **Storage**: 15 GB gp3.
-8. Click **Launch instance**.
+## Recommended AWS Setup
 
-## Step 2: Connect to the Instance
+- Service: `EC2`
+- OS: `Ubuntu 24.04 LTS`
+- Instance type: `t3.small`
+- Storage: `20 GB gp3`
+- Security group inbound:
+  - `SSH` on port `22` from your IP only
+  - `HTTP` on port `80` from `0.0.0.0/0`
+  - `HTTPS` on port `443` from `0.0.0.0/0` if you add a domain later
 
-Open your local terminal (Command Prompt, PowerShell, or Mac Terminal) where you downloaded your `.pem` key:
+`t3.micro` may boot, but PySpark and builds are much less reliable there.
+
+## Why EC2 Is The Right First Step
+
+- Learner Lab commonly supports EC2 and S3, while some managed services may be restricted.
+- Your app currently uses SQLite and local file storage, which makes single-instance hosting the simplest option.
+- It keeps cost and moving parts low while you validate the project.
+
+## Before You Launch
+
+1. Push this repo to GitHub, or prepare to copy it with `scp`.
+2. Make sure you can SSH with a key pair.
+3. Keep in mind that if the instance is terminated, your SQLite DB and uploaded files are gone unless you back them up.
+
+## Launch The EC2 Instance
+
+1. Open the AWS Console.
+2. Go to `EC2`.
+3. Click `Launch instance`.
+4. Use:
+   - Name: `smart-notes-server`
+   - AMI: `Ubuntu 24.04 LTS`
+   - Instance type: `t3.small`
+   - Storage: `20 GB gp3`
+5. Create or select a key pair.
+6. Configure the security group:
+   - Allow `SSH` from your IP
+   - Allow `HTTP` from the internet
+   - Allow `HTTPS` from the internet if needed later
+7. Launch the instance.
+
+## Connect To The Server
 
 ```bash
-# Set secure permissions on the key (Mac/Linux only)
-chmod 400 smart-notes-key.pem
-
-# Connect to the instance
-ssh -i "smart-notes-key.pem" ubuntu@<YOUR-EC2-PUBLIC-IP>
+ssh -i "smart-notes-key.pem" ubuntu@<EC2_PUBLIC_IP>
 ```
 
-## Step 3: Download Your Code
+## Copy The Project
 
-Once inside the EC2 terminal, you need to get your code onto the server. You can clone your GitHub repository:
+Using Git:
 
 ```bash
-git clone <YOUR-GITHUB-REPO-URL> smart-notes
+git clone <YOUR_GITHUB_REPO_URL> smart-notes
 cd smart-notes
 ```
 
-*(Note: If you haven't uploaded to GitHub, you will need to do that first, or use `scp` to copy your files over).*
+Or copy the project from your machine with `scp`.
 
-## Step 4: Run the Automated Deployment Script
+## Run The Deployment Script
 
-I have created an automated deployment script `deploy_ec2.sh` that installs Java (for PySpark), Node.js, Nginx, Python, and configures PM2 to keep the server running.
-
-Run the following commands:
+On the EC2 instance:
 
 ```bash
-# Make the script executable
 chmod +x deploy_ec2.sh
-
-# Run the deployment
 ./deploy_ec2.sh
 ```
 
-## Step 5: Configure AWS Credentials
+The script will:
 
-The deployment script successfully built the app, but you must provide your Learner Lab AWS credentials so S3 works.
+- install Python, Node.js, Java, and Nginx
+- create swap for PySpark stability
+- create a virtual environment
+- install backend dependencies
+- build the frontend with `VITE_API_URL=/api`
+- start FastAPI with PM2
+- configure Nginx for `/`, `/api`, and `/uploads`
+
+## Environment Variables
+
+Edit the backend environment file:
 
 ```bash
 nano ~/smart-notes/backend/.env
 ```
 
-Paste your temporary AWS Academy credentials:
+At minimum, change:
+
 ```env
-AWS_ACCESS_KEY_ID="ASIA..."
-AWS_SECRET_ACCESS_KEY="..."
-AWS_SESSION_TOKEN="..."
+SECRET_KEY="replace-with-a-long-random-secret"
+DEBUG=False
 ```
 
-Save and exit `nano` (`Ctrl+O`, `Enter`, `Ctrl+X`).
+### About AWS Credentials
 
-## Step 6: Restart the API
+Right now the repo stores uploads locally in `backend/uploads` and does not require live S3 credentials to work.
 
-Apply the new credentials by restarting the FastAPI server:
+That means you can deploy immediately without:
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_SESSION_TOKEN`
+
+If you later switch the storage layer back to real S3, Learner Lab temporary credentials may expire, so instance-role-based access is better if your lab allows it.
+
+## Open The App
+
+Visit:
+
+```text
+http://<EC2_PUBLIC_IP>
+```
+
+## Useful Commands
+
+Restart API:
 
 ```bash
 pm2 restart smart-notes-api
 ```
 
-## Step 7: Access the App
+Check API logs:
 
-Open your web browser and navigate to your EC2 instance's **Public IPv4 address**:
-`http://<YOUR-EC2-PUBLIC-IP>`
+```bash
+pm2 logs smart-notes-api
+```
 
-Your application is now live on the internet! 
+Restart Nginx:
 
-*(Remember to stop your EC2 instance when not in use to save your $50 Learner Lab credits).*
+```bash
+sudo systemctl restart nginx
+```
+
+## Important Limits Of This First Deployment
+
+- SQLite is fine for demos and coursework, but not ideal for multi-user production.
+- Local uploads are lost if the instance disk is lost or the instance is rebuilt.
+- Learner Lab is great for learning, but not ideal for long-term public hosting.
+
+## Best Next Upgrade Path
+
+Once the EC2 deployment works, the next improvements should be:
+
+1. Move SQLite to PostgreSQL.
+2. Move uploads to S3.
+3. Keep analytics on AWS Glue and add stronger job/result observability.
+4. Add a domain and HTTPS with Nginx + Let's Encrypt or an AWS load balancer.
+5. Add automated backups.

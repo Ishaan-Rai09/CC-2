@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..auth.utils import get_current_user
@@ -20,4 +21,5 @@ def get_analytics(
     - file_type_distribution
     - total_files
     """
-    return compute_analytics(db, current_user.id)
+    payload, status_code = compute_analytics(db, current_user.id)
+    return JSONResponse(content=payload, status_code=status_code)

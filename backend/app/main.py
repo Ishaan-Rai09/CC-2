@@ -34,6 +34,7 @@ create_tables()
 # Routers
 app.include_router(auth_router)
 app.include_router(notes_router)
+app.include_router(analytics_router)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 

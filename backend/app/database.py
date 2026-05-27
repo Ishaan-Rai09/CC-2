@@ -25,5 +25,6 @@ def get_db():
 
 def create_tables():
     from .auth.models import User
+    from .analytics.models import AnalyticsJob
     from .notes.models import Note
     Base.metadata.create_all(bind=engine)

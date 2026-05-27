@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     AWS_REGION: str = "us-east-1"
     AWS_BUCKET_NAME: str = "smart-notes-files"
 
+    # Analytics
+    ANALYTICS_ENGINE: str = "local"
+    ANALYTICS_CACHE_SECONDS: int = 300
+    AWS_ANALYTICS_BUCKET_NAME: str = ""
+    AWS_ANALYTICS_INPUT_PREFIX: str = "analytics/input"
+    AWS_ANALYTICS_OUTPUT_PREFIX: str = "analytics/output"
+    AWS_GLUE_JOB_NAME: str = ""
+    AWS_GLUE_JOB_TIMEOUT_SECONDS: int = 180
+    AWS_GLUE_POLL_INTERVAL_SECONDS: int = 5
+
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:80"]
 

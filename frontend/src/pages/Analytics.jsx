@@ -1,34 +1,107 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AlertCircle, CloudCog } from 'lucide-react';
+
 import { analyticsService } from '../services/notes';
-import StatCard from '../components/StatCard';
-import { AlertCircle } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#8b5cf6', '#d946ef', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#06b6d4'];
+const POLL_INTERVAL_MS = 5000;
 
 const Analytics = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [jobState, setJobState] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    let cancelled = false;
+    let timerId = null;
+
     const fetchAnalytics = async () => {
       try {
         const result = await analyticsService.getAnalytics();
+        if (cancelled) {
+          return;
+        }
+
+        if (result.status === 'running' || result.statusCode === 202) {
+          setJobState(result);
+          setError('');
+          setLoading(false);
+          timerId = window.setTimeout(fetchAnalytics, POLL_INTERVAL_MS);
+          return;
+        }
+
+        if (result.status === 'error') {
+          setError(result.message || 'Analytics job failed.');
+          setJobState(null);
+          setLoading(false);
+          return;
+        }
+
         setData(result);
+        setJobState(null);
+        setError('');
       } catch (err) {
-        console.error("Failed to load analytics", err);
+        if (!cancelled) {
+          console.error('Failed to load analytics', err);
+          setError('Failed to load analytics.');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
+
     fetchAnalytics();
+
+    return () => {
+      cancelled = true;
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
   }, []);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (jobState) {
+    return (
+      <div className="p-6 md:p-10 max-w-7xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Analytics</h1>
+          <p className="text-[var(--color-text-secondary)] mt-1">AWS Glue is running your PySpark job.</p>
+        </header>
+        <div className="text-center py-20 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)]">
+          <CloudCog className="w-12 h-12 text-[var(--color-accent)] mx-auto mb-4 animate-pulse" />
+          <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Analytics job in progress</h3>
+          <p className="text-[var(--color-text-secondary)] mt-1">
+            {jobState.message || 'Your AWS Glue PySpark job is running. This page will refresh automatically.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 md:p-10 max-w-7xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Analytics</h1>
+        </header>
+        <div className="text-center py-20 bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)]">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Analytics unavailable</h3>
+          <p className="text-[var(--color-text-secondary)] mt-1">{error}</p>
+        </div>
       </div>
     );
   }
@@ -53,17 +126,18 @@ const Analytics = () => {
       <header className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-[var(--color-text-primary)] tracking-tight">Analytics</h1>
-          <p className="text-[var(--color-text-secondary)] mt-1">Insights powered by Apache PySpark.</p>
+          <p className="text-[var(--color-text-secondary)] mt-1">
+            Insights powered by {data.engine === 'aws_glue' ? 'AWS Glue PySpark' : 'Apache PySpark'}.
+          </p>
         </div>
         <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-[var(--color-accent)]/10 text-[var(--color-accent)] rounded-full text-xs font-medium border border-[var(--color-accent)]/20">
           <span className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-          PySpark Engine Active
+          {data.engine === 'aws_glue' ? 'AWS Glue Active' : 'PySpark Engine Active'}
         </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Most Uploaded Subjects */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6"
@@ -74,9 +148,9 @@ const Analytics = () => {
               <BarChart data={data.top_subjects.slice(0, 5)} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                 <XAxis type="number" hide />
                 <YAxis dataKey="subject" type="category" axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-secondary)' }} width={100} />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: 'var(--color-surface-raised)' }}
-                  contentStyle={{ backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: '8px', color: 'var(--color-text-primary)' }} 
+                  contentStyle={{ backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: '8px', color: 'var(--color-text-primary)' }}
                 />
                 <Bar dataKey="count" fill="var(--color-accent)" radius={[0, 4, 4, 0]}>
                   {data.top_subjects.map((entry, index) => (
@@ -88,8 +162,7 @@ const Analytics = () => {
           </div>
         </motion.div>
 
-        {/* File Type Distribution */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -113,8 +186,8 @@ const Analytics = () => {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: '8px', color: 'var(--color-text-primary)' }} 
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: '8px', color: 'var(--color-text-primary)' }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -129,8 +202,7 @@ const Analytics = () => {
           </div>
         </motion.div>
 
-        {/* Monthly Trend */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
@@ -142,9 +214,9 @@ const Analytics = () => {
               <BarChart data={data.monthly_uploads}>
                 <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'var(--color-text-secondary)' }} dy={10} />
                 <YAxis hide />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: 'var(--color-surface-raised)' }}
-                  contentStyle={{ backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: '8px', color: 'var(--color-text-primary)' }} 
+                  contentStyle={{ backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: '8px', color: 'var(--color-text-primary)' }}
                 />
                 <Bar dataKey="count" fill="var(--color-accent)" radius={[4, 4, 0, 0]} />
               </BarChart>
