@@ -29,8 +29,6 @@ A modern, production-grade student productivity platform built with a FastAPI ba
 
 ## Project Summary for Reports
 
-This section provides a concise, structured description of the Smart Notes & File Organizer project suitable for feeding into an LLM (Claude) to produce a formal report.
-
 - **Purpose**: A student productivity platform to upload, organize, and analyze academic files; includes a web UI, REST API, file storage on S3, and PySpark analytics.
 - **Core Capabilities**: User authentication, file upload & organization by subject, search, dashboard visualizations, and analytics (upload trends, top subjects, file-type distribution).
 
@@ -67,11 +65,6 @@ This section provides a concise, structured description of the Smart Notes & Fil
 
 **Deployment Notes**
 - AWS: Use S3 for storage, Glue for scheduled analytics, and an EC2 or container host (scripts like `deploy_ec2.sh`) for backend if not using managed services. See `docs/AWS_SETUP.md` and `docs/DEPLOYMENT.md` for step-by-step instructions.
-
-**Notes for Claude (report guidance)**
-- Provide a formal project summary that includes purpose, architecture diagram (high-level), component responsibilities, data flow, deployment options, and testing & operations guidance.
-- Include short code references: main endpoints in [backend/app/main.py](backend/app/main.py), analytics logic in [aws/glue/smart_notes_analytics_job.py](aws/glue/smart_notes_analytics_job.py), and UI pages in [frontend/src/pages](frontend/src/pages).
-- Ask Claude to generate: an executive summary, technical architecture section, deployment checklist, and suggested monitoring/SLAs for analytics jobs.
 
 ## Quick Start (Local Development)
 
